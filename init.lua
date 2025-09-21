@@ -681,9 +681,8 @@ require('lazy').setup({
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
         --
-
+        --ts_ls = {},
         lua_ls = {
           -- cmd = { ... },
           -- filetypes = { ... },
@@ -722,6 +721,7 @@ require('lazy').setup({
       require('mason-lspconfig').setup {
         ensure_installed = {},
         automatic_installation = false,
+        automatic_enable = true,
         handlers = {
           function(server_name)
             local server = servers[server_name] or {}
@@ -802,12 +802,12 @@ require('lazy').setup({
           -- `friendly-snippets` contains a variety of premade snippets.
           --    See the README about individual language/framework/plugin snippets:
           --    https://github.com/rafamadriz/friendly-snippets
-          -- {
-          --   'rafamadriz/friendly-snippets',
-          --   config = function()
-          --     require('luasnip.loaders.from_vscode').lazy_load()
-          --   end,
-          -- },
+          {
+            'rafamadriz/friendly-snippets',
+            config = function()
+              require('luasnip.loaders.from_vscode').lazy_load()
+            end,
+          },
         },
         opts = {},
       },
@@ -957,13 +957,39 @@ require('lazy').setup({
     ft = { 'markdown' },
   },
   {
+    'ThePrimeagen/harpoon',
+    branch = 'harpoon2',
+    dependencies = { 'nvim-lua/plenary.nvim' },
+  },
+  {
+    'pmizio/typescript-tools.nvim',
+    dependencies = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim' },
+    config = function()
+      require('typescript-tools').setup {
+        filetypes = {
+          'javascript',
+          'javascriptreact',
+          'typescript',
+          'typescriptreact',
+          'vue',
+        },
+        settings = {
+          separate_diagnostic_server = true,
+          tsserver_plugins = {
+            '@vue/typescript-plugin',
+          },
+        },
+      }
+    end,
+  },
+  {
     'windwp/nvim-ts-autotag',
     config = function()
       require('nvim-ts-autotag').setup()
     end,
   },
   { 'pocco81/auto-save.nvim' },
-  { -- Highlight, edit, and navigate code
+  {
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
@@ -1046,5 +1072,63 @@ vim.opt.shiftwidth = 2
 vim.opt.softtabstop = 2
 vim.opt.expandtab = true
 
+-- Harpoon Setup
+local harpoon = require 'harpoon'
+
+-- REQUIRED
+harpoon:setup()
+-- REQUIRED
+
+vim.keymap.set('n', '<leader>a', function()
+  harpoon:list():add()
+end)
+vim.keymap.set('n', '<leader>1', function()
+  harpoon:list():select(1)
+end)
+vim.keymap.set('n', '<leader>2', function()
+  harpoon:list():select(2)
+end)
+vim.keymap.set('n', '<leader>3', function()
+  harpoon:list():select(3)
+end)
+vim.keymap.set('n', '<leader>4', function()
+  harpoon:list():select(4)
+end)
+
+-- Toggle previous & next buffers stored within Harpoon list
+vim.keymap.set('n', '<leader>,', function()
+  harpoon:list():prev()
+end)
+vim.keymap.set('n', '<leader>.', function()
+  harpoon:list():next()
+end)
+
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
+
+local harpoon = require 'harpoon'
+harpoon:setup {}
+
+-- basic telescope configuration
+local conf = require('telescope.config').values
+local function toggle_telescope(harpoon_files)
+  local file_paths = {}
+  for _, item in ipairs(harpoon_files.items) do
+    table.insert(file_paths, item.value)
+  end
+
+  require('telescope.pickers')
+    .new({}, {
+      prompt_title = 'Harpoon',
+      finder = require('telescope.finders').new_table {
+        results = file_paths,
+      },
+      previewer = conf.file_previewer {},
+      sorter = conf.generic_sorter {},
+    })
+    :find()
+end
+
+vim.keymap.set('n', '<C-e>', function()
+  toggle_telescope(harpoon:list())
+end, { desc = 'Open harpoon window' })
