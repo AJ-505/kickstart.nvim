@@ -776,6 +776,7 @@ require('lazy').setup({
         css = { 'prettierd', 'prettier', stop_after_first = true },
         html = { 'prettierd', 'prettier', stop_after_first = true },
         typescript = { 'prettierd', 'prettier', stop_after_first = true },
+        prisma = { 'prismals', stop_after_first = true },
       },
     },
   },
@@ -988,7 +989,6 @@ require('lazy').setup({
       require('nvim-ts-autotag').setup()
     end,
   },
-  { 'pocco81/auto-save.nvim' },
   {
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
@@ -1096,10 +1096,10 @@ vim.keymap.set('n', '<leader>4', function()
 end)
 
 -- Toggle previous & next buffers stored within Harpoon list
-vim.keymap.set('n', '<leader>,', function()
+vim.keymap.set('n', '<leader>p', function()
   harpoon:list():prev()
 end)
-vim.keymap.set('n', '<leader>.', function()
+vim.keymap.set('n', '<leader>n', function()
   harpoon:list():next()
 end)
 
