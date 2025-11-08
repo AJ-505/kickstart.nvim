@@ -958,6 +958,18 @@ require('lazy').setup({
     ft = { 'markdown' },
   },
   {
+    'esmuellert/nvim-eslint',
+    config = function()
+      require('nvim-eslint').setup {}
+    end,
+  },
+  {
+    'tpope/vim-fugitive',
+  },
+  {
+    'mbbill/undotree',
+  },
+  {
     'ThePrimeagen/harpoon',
     branch = 'harpoon2',
     dependencies = { 'nvim-lua/plenary.nvim' },
@@ -1106,7 +1118,6 @@ end)
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
 
-local harpoon = require 'harpoon'
 harpoon:setup {}
 
 -- basic telescope configuration
