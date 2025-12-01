@@ -975,6 +975,9 @@ require('lazy').setup({
     dependencies = { 'nvim-lua/plenary.nvim' },
   },
   {
+    'ThePrimeagen/vim-be-good',
+  },
+  {
     'pmizio/typescript-tools.nvim',
     dependencies = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim' },
     config = function()
