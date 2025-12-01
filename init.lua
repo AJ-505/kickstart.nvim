@@ -970,6 +970,12 @@ require('lazy').setup({
     'mbbill/undotree',
   },
   {
+    'numToStr/Comment.nvim',
+    opts = {
+      -- add any options here
+    },
+  },
+  {
     'ThePrimeagen/harpoon',
     branch = 'harpoon2',
     dependencies = { 'nvim-lua/plenary.nvim' },
@@ -1168,3 +1174,6 @@ end
 vim.keymap.set('n', '<C-e>', function()
   toggle_telescope(harpoon:list())
 end, { desc = 'Open harpoon window' })
+
+vim.keymap.set('n', '<C-/>', 'gcc', { noremap = true, silent = true })
+vim.keymap.set('v', '<C-/>', 'gc', { noremap = true, silent = true })
