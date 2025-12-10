@@ -777,6 +777,7 @@ require('lazy').setup({
         html = { 'prettierd', 'prettier', stop_after_first = true },
         typescript = { 'prettierd', 'prettier', stop_after_first = true },
         prisma = { 'prismals', stop_after_first = true },
+        cpp = { 'clang_format', stop_after_first = true },
       },
     },
   },
@@ -958,12 +959,6 @@ require('lazy').setup({
     ft = { 'markdown' },
   },
   {
-    'esmuellert/nvim-eslint',
-    config = function()
-      require('nvim-eslint').setup {}
-    end,
-  },
-  {
     'tpope/vim-fugitive',
   },
   {
@@ -1085,7 +1080,7 @@ require('lazy').setup({
 })
 
 require 'keybindings'
-vim.opt.clipboard = 'unnamedplus'
+vim.opt.clipboard = 'unnamed,unnamedplus'
 
 -- Set tab size to 2 spaces
 vim.opt.tabstop = 2
@@ -1117,10 +1112,10 @@ vim.keymap.set('n', '<leader>4', function()
 end)
 
 -- Toggle previous & next buffers stored within Harpoon list
-vim.keymap.set('n', '<leader>p', function()
+vim.keymap.set('n', '<leader>P', function()
   harpoon:list():prev()
 end)
-vim.keymap.set('n', '<leader>n', function()
+vim.keymap.set('n', '<leader>N', function()
   harpoon:list():next()
 end)
 vim.keymap.set('n', '<leader>dr', function()
@@ -1177,3 +1172,34 @@ end, { desc = 'Open harpoon window' })
 
 vim.keymap.set('n', '<C-/>', 'gcc', { noremap = true, silent = true })
 vim.keymap.set('v', '<C-/>', 'gc', { noremap = true, silent = true })
+
+vim.keymap.set('v', '<leader>p', '"_dp', { noremap = true, silent = true })
+
+-- Configure neovim to copy and paste using win32yank on WSL
+-- Only set clipboard when running inside WSL
+if vim.fn.has 'wsl' == 1 then
+  vim.g.clipboard = {
+    name = 'win32yank-wsl',
+    copy = {
+      ['+'] = 'win32yank.exe -i --crlf',
+      ['*'] = 'win32yank.exe -i --crlf',
+    },
+    paste = {
+      ['+'] = 'win32yank.exe -o --lf',
+      ['*'] = 'win32yank.exe -o --lf',
+    },
+    cache_enabled = 1,
+  }
+end
+
+-- Add a simple keymap to toggle all diagnostics (including ESLint)
+vim.keymap.set('n', '<leader>dd', function()
+  local diagnostics_enabled = vim.diagnostic.is_enabled()
+  if diagnostics_enabled then
+    vim.diagnostic.disable()
+    print 'Diagnostics disabled.'
+  else
+    vim.diagnostic.enable()
+    print 'Diagnostics enabled.'
+  end
+end, { desc = 'Toggle Diagnostics' })
