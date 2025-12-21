@@ -553,7 +553,7 @@ require('lazy').setup({
           -- Jump to the definition of the word under your cursor.
           --  This is where a variable was first declared, or where a function is defined, etc.
           --  To jump back, press <C-t>.
-          map('grd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
+          map('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
 
           -- WARN: This is not Goto Definition, this is Goto Declaration.
           --  For example, in C this would take you to the header.
@@ -753,7 +753,7 @@ require('lazy').setup({
         -- Disable "format_on_save lsp_fallback" for languages that don't
         -- have a well standardized coding style. You can add additional
         -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true }
+        local disable_filetypes = { c = true }
         if disable_filetypes[vim.bo[bufnr].filetype] then
           return nil
         else
@@ -1196,10 +1196,12 @@ end
 vim.keymap.set('n', '<leader>dd', function()
   local diagnostics_enabled = vim.diagnostic.is_enabled()
   if diagnostics_enabled then
-    vim.diagnostic.disable()
+    vim.diagnostic.enable(false)
     print 'Diagnostics disabled.'
   else
-    vim.diagnostic.enable()
+    vim.diagnostic.enable(true)
     print 'Diagnostics enabled.'
   end
 end, { desc = 'Toggle Diagnostics' })
+
+vim.keymap.set('n', '<leader>w', ':noa wa<CR>', { silent = true, noremap = true })
