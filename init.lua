@@ -598,12 +598,13 @@ require('lazy').setup({
           end
 
           -- PERFORMANCE: Disable semantic tokens to reduce LSP processing by ~30-40%
+          --
           -- Semantic tokens provide syntax highlighting but are very expensive in large files
           -- Treesitter provides sufficient highlighting without the LSP overhead
-          local client = vim.lsp.get_client_by_id(event.data.client_id)
-          if client and client.server_capabilities.semanticTokensProvider then
-            client.server_capabilities.semanticTokensProvider = nil
-          end
+          -- local client = vim.lsp.get_client_by_id(event.data.client_id)
+          -- if client and client.server_capabilities.semanticTokensProvider then
+          -- client.server_capabilities.semanticTokensProvider = nil
+          -- end
 
           -- The following two autocommands are used to highlight references of the
           -- word under your cursor when your cursor rests there for a little while.
@@ -728,7 +729,6 @@ require('lazy').setup({
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
-        'dprint', -- PERFORMANCE: Rust-based formatter, 20x faster than prettierd
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -790,16 +790,13 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
-        -- PERFORMANCE: Replace prettierd with dprint for 20x faster formatting
-        -- dprint is Rust-based and Prettier-compatible via plugins
-        -- Install dprint: `npm install -g dprint` and create a dprint.json in your project root
-        javascript = { 'dprint', 'prettier', stop_after_first = true },
-        typescriptreact = { 'dprint', 'prettier', stop_after_first = true },
-        vue = { 'dprint', 'prettier', stop_after_first = true },
-        javascriptreact = { 'dprint', 'prettier', stop_after_first = true },
-        css = { 'dprint', 'prettier', stop_after_first = true },
-        html = { 'dprint', 'prettier', stop_after_first = true },
-        typescript = { 'dprint', 'prettier', stop_after_first = true },
+        javascript = { 'prettierd', 'prettier', stop_after_first = true },
+        typescriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        vue = { 'prettierd', 'prettier', stop_after_first = true },
+        javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        css = { 'prettierd', 'prettier', stop_after_first = true },
+        html = { 'prettierd', 'prettier', stop_after_first = true },
+        typescript = { 'prettierd', 'prettier', stop_after_first = true },
         prisma = { 'prismals', stop_after_first = true },
         cpp = { 'clang_format', stop_after_first = true },
       },
@@ -999,6 +996,7 @@ require('lazy').setup({
     branch = 'harpoon2',
     dependencies = { 'nvim-lua/plenary.nvim' },
   },
+  { 'wakatime/vim-wakatime', lazy = false },
   {
     'ThePrimeagen/vim-be-good',
   },
