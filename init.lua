@@ -681,27 +681,7 @@ require('lazy').setup({
       --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
       local capabilities = require('blink.cmp').get_lsp_capabilities()
 
-      -- PERFORMANCE: Configure vtsls (Vue TypeScript Language Server) instead of typescript-tools
-      -- vtsls is 5-10x faster, uses less memory, and has better Vue support
-      -- It reads your tsconfig.json and prettier config automatically
       local servers = {
-        vtsls = {
-          settings = {
-            typescript = {
-              -- Disable expensive features for better performance
-              suggest = {
-                completeFunctionCalls = false,
-                includeAutomaticOptionalChainCompletions = false,
-              },
-            },
-            javascript = {
-              suggest = {
-                completeFunctionCalls = false,
-                includeAutomaticOptionalChainCompletions = false,
-              },
-            },
-          },
-        },
         lua_ls = {
           settings = {
             Lua = {
@@ -740,17 +720,6 @@ require('lazy').setup({
           function(server_name)
             local server = servers[server_name] or {}
             server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-
-            -- PERFORMANCE: Disable file watching to reduce CPU usage in large projects
-            -- This prevents tsserver from scanning node_modules constantly
-            if server_name == 'vtsls' then
-              server.settings = server.settings or {}
-              server.settings.vtsls = server.settings.vtsls or {}
-              server.settings.vtsls.experimental = {
-                maxInFlightInvocations = 50, -- Reduce concurrent operations
-              }
-            end
-
             require('lspconfig')[server_name].setup(server)
           end,
         },
@@ -790,13 +759,13 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
-        javascript = { 'prettierd', 'prettier', stop_after_first = true },
-        typescriptreact = { 'prettierd', 'prettier', stop_after_first = true },
-        vue = { 'prettierd', 'prettier', stop_after_first = true },
-        javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
-        css = { 'prettierd', 'prettier', stop_after_first = true },
-        html = { 'prettierd', 'prettier', stop_after_first = true },
-        typescript = { 'prettierd', 'prettier', stop_after_first = true },
+        javascript = { 'prettier', stop_after_first = true },
+        typescriptreact = { 'prettier', stop_after_first = true },
+        vue = { 'prettier', stop_after_first = true },
+        javascriptreact = { 'prettier', stop_after_first = true },
+        css = { 'prettier', stop_after_first = true },
+        html = { 'prettier', stop_after_first = true },
+        typescript = { 'prettier', stop_after_first = true },
         prisma = { 'prismals', stop_after_first = true },
         cpp = { 'clang_format', stop_after_first = true },
       },
@@ -1000,29 +969,6 @@ require('lazy').setup({
   {
     'ThePrimeagen/vim-be-good',
   },
-  -- PERFORMANCE: Removed slow typescript-tools.nvim
-  -- Replaced by vtsls in lspconfig above (5-10x faster, better Vue support)
-  -- {
-  --   'pmizio/typescript-tools.nvim',
-  --   dependencies = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim' },
-  --   config = function()
-  --     require('typescript-tools').setup {
-  --       filetypes = {
-  --         'javascript',
-  --         'javascriptreact',
-  --         'typescript',
-  --         'typescriptreact',
-  --         'vue',
-  --       },
-  --       settings = {
-  --         separate_diagnostic_server = true,
-  --         tsserver_plugins = {
-  --           '@vue/typescript-plugin',
-  --         },
-  --       },
-  --     }
-  --   end,
-  -- },
   {
     'windwp/nvim-ts-autotag',
     config = function()
@@ -1231,3 +1177,20 @@ end, { desc = 'Toggle Diagnostics' })
 
 -- PERFORMANCE: Use :noa wa to save without triggering autocommands (faster)
 vim.keymap.set('n', '<leader>w', ':noa wa<CR>', { silent = true, noremap = true })
+
+-- TS 7 (tsgo) LSP implementation
+local lspconfig = require 'lspconfig'
+local configs = require 'lspconfig.configs'
+
+if not configs.tsgo then
+  configs.tsgo = {
+    default_config = {
+      cmd = { 'tsgo', '--lsp', '--stdio' },
+      filetypes = { 'typescript', 'typescriptreact', 'javascript', 'javascriptreact' },
+      root_dir = lspconfig.util.root_pattern('package.json', 'tsconfig.json', '.git'),
+      settings = {},
+    },
+  }
+end
+
+lspconfig.tsgo.setup {}
