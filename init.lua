@@ -970,9 +970,9 @@ require('lazy').setup({
   },
   {
     'windwp/nvim-ts-autotag',
-    config = function()
-      require('nvim-ts-autotag').setup()
-    end,
+    event = { 'BufReadPre', 'BufNewFile' },
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    opts = {},
   },
   {
     'nvim-treesitter/nvim-treesitter',
@@ -1189,3 +1189,9 @@ if not configs.tsgo then
 end
 
 lspconfig.tsgo.setup {}
+
+vim.api.nvim_create_autocmd('FileType', {
+  callback = function(args)
+    pcall(vim.treesitter.start, args.buf)
+  end,
+})
