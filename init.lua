@@ -120,21 +120,12 @@ vim.o.showmode = false
 --  Schedule the setting after `UiEnter` because it can increase startup-time.
 --  Remove this option if you want your OS clipboard to remain independent.
 --  See `:help 'clipboard'`
-vim.schedule(function()
-  vim.o.clipboard = 'unnamedplus'
-end)
 
 -- Enable break indent
 vim.o.breakindent = true
 
 -- Save undo history
 vim.o.undofile = true
-
--- PERFORMANCE: Disable swap files to reduce disk I/O in WSL
--- WSL2's file I/O is slow, especially on /mnt/c. Swap files cause frequent writes.
-vim.o.swapfile = false
-vim.o.backup = false
-vim.o.writebackup = false
 
 -- Case-insensitive searching UNLESS \C or one or more capital letters in the search term
 vim.o.ignorecase = true
@@ -1045,7 +1036,7 @@ require('lazy').setup({
 })
 
 require 'keybindings'
-vim.opt.clipboard = 'unnamed,unnamedplus'
+vim.opt.clipboard = 'unnamedplus'
 
 -- Set tab size to 2 spaces
 vim.opt.tabstop = 2
@@ -1139,24 +1130,6 @@ vim.keymap.set('n', '<C-/>', 'gcc', { noremap = true, silent = true })
 vim.keymap.set('v', '<C-/>', 'gc', { noremap = true, silent = true })
 
 vim.keymap.set('v', '<leader>p', '"_dp', { noremap = true, silent = true })
-
--- Configure neovim to copy and paste using win32yank on WSL
--- Only set clipboard when running inside WSL
--- PERFORMANCE: This is already optimized for WSL clipboard integration
-if vim.fn.has 'wsl' == 1 then
-  vim.g.clipboard = {
-    name = 'win32yank-wsl',
-    copy = {
-      ['+'] = 'win32yank.exe -i --crlf',
-      ['*'] = 'win32yank.exe -i --crlf',
-    },
-    paste = {
-      ['+'] = 'win32yank.exe -o --lf',
-      ['*'] = 'win32yank.exe -o --lf',
-    },
-    cache_enabled = 1,
-  }
-end
 
 -- Add a simple keymap to toggle all diagnostics (including ESLint)
 vim.keymap.set('n', '<leader>dd', function()
