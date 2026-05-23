@@ -553,10 +553,74 @@ require('lazy').setup({
           --  Useful when your language has ways of declaring types without an actual implementation.
           map('gri', require('telescope.builtin').lsp_implementations, '[G]oto [I]mplementation')
 
-          -- Jump to the definition of the word under your cursor.
-          --  This is where a variable was first declared, or where a function is defined, etc.
-          --  To jump back, press <C-t>.
-          map('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
+          local ts_filetypes = {
+            javascript = true,
+            javascriptreact = true,
+            typescript = true,
+            typescriptreact = true,
+          }
+
+          local function goto_ts_source_definition()
+            local bufnr = event.buf
+            local clients = vim.tbl_filter(function(lsp_client)
+              return lsp_client.name == 'tsgo' and lsp_client.attached_buffers[bufnr]
+            end, vim.lsp.get_clients { bufnr = bufnr })
+
+            if vim.tbl_isempty(clients) then
+              require('telescope.builtin').lsp_implementations()
+              return
+            end
+
+            local client = clients[1]
+            local offset_encoding = client.offset_encoding or 'utf-16'
+            local params = vim.lsp.util.make_position_params(0, offset_encoding)
+
+            client:request('custom/textDocument/sourceDefinition', params, function(err, result)
+              if err then
+                vim.notify(err.message or vim.inspect(err), vim.log.levels.WARN)
+                require('telescope.builtin').lsp_definitions()
+                return
+              end
+
+              if not result or vim.tbl_isempty(result) then
+                require('telescope.builtin').lsp_definitions()
+                return
+              end
+
+              local locations = vim.islist(result) and result or { result }
+              if #locations == 1 then
+                vim.lsp.util.show_document(locations[1], offset_encoding, { focus = true })
+                return
+              end
+
+              local items = vim.lsp.util.locations_to_items(locations, offset_encoding)
+
+              require('telescope.pickers')
+                .new({}, {
+                  prompt_title = 'TS Source Definitions',
+                  finder = require('telescope.finders').new_table {
+                    results = items,
+                    entry_maker = require('telescope.make_entry').gen_from_quickfix {},
+                  },
+                  previewer = require('telescope.config').values.qflist_previewer {},
+                  sorter = require('telescope.config').values.generic_sorter {},
+                  push_cursor_on_edit = true,
+                  push_tagstack_on_edit = true,
+                })
+                :find()
+            end, bufnr)
+          end
+
+          if ts_filetypes[vim.bo[event.buf].filetype] then
+            map('gd', goto_ts_source_definition, '[G]oto Source [D]efinition')
+            map('gD', require('telescope.builtin').lsp_definitions, '[G]oto TypeScript [D]eclaration')
+            map('gs', goto_ts_source_definition, '[G]oto [S]ource Definition')
+          else
+            -- Jump to the definition of the word under your cursor.
+            --  This is where a variable was first declared, or where a function is defined, etc.
+            --  To jump back, press <C-t>.
+            map('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
+          end
 
           -- WARN: This is not Goto Definition, this is Goto Declaration.
           --  For example, in C this would take you to the header.
@@ -957,6 +1021,184 @@ require('lazy').setup({
     dependencies = { 'nvim-lua/plenary.nvim' },
   },
   {
+    'joryeugene/dadbod-grip.nvim',
+    dependencies = { 'tpope/vim-dadbod' }, -- it builds on this
+    cmd = { 'Grip', 'GripOpen', 'GripStart', ... },
+    config = function()
+      require('dadbod-grip').setup {
+        -- optional config here
+      }
+    end,
+  },
+  {
+    'vidocqh/data-viewer.nvim',
+    opts = {},
+    dependencies = {
+      'nvim-lua/plenary.nvim',
+      'kkharji/sqlite.lua', -- Optional, sqlite support
+    },
+  },
+  {
+    'jay-babu/mason-nvim-dap.nvim',
+    dependencies = { 'williamboman/mason.nvim' },
+    opts = { ensure_installed = { 'js-debug-adapter' } },
+  },
+
+  -- nvim-dap (the debugger itself)
+  {
+    'mfussenegger/nvim-dap',
+    dependencies = {
+      'rcarriga/nvim-dap-ui',
+      'nvim-neotest/nvim-nio',
+      'jay-babu/mason-nvim-dap.nvim', -- ensures js-debug-adapter is installed
+      'williamboman/mason.nvim',
+    },
+    config = function()
+      local dap = require 'dap'
+      local dapui = require 'dapui'
+
+      -- Adapters
+      dap.adapters['pwa-node'] = {
+        type = 'server',
+        host = 'localhost',
+        port = '${port}',
+        executable = {
+          command = 'node',
+          args = { '/home/abasiono/code/devtools/js-debug/src/dapDebugServer.js', '${port}' },
+        },
+      }
+      dap.adapters['pwa-chrome'] = {
+        type = 'server',
+        host = 'localhost',
+        port = '${port}',
+        executable = {
+          command = 'node',
+          args = { '/home/abasiono/code/devtools/js-debug/src/dapDebugServer.js', '${port}' },
+        },
+      }
+
+      -- Generic JS/TS/React debug configs — these apply to EVERY project you open
+      -- (anything under ~/code: TanStack Start, Next, Vite, Astro, plain Node, etc.).
+      -- Philosophy: attach to already-running dev servers / browsers. You start the
+      -- processes however that project starts them (with an inspector open), then
+      -- attach from here. Nothing is hardcoded to a single repo.
+      local js_langs = { 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'typescript.tsx' }
+      -- Only Node's own internals are hidden. node_modules stays steppable on purpose,
+      -- so you can step straight into library/dependency source. Add patterns here to hide more.
+      local skip = { '<node_internals>/**' }
+      for _, lang in ipairs(js_langs) do
+        dap.configurations[lang] = {
+          {
+            -- Most generic: attach to any running Node process you pick from a list.
+            -- Works even if the process wasn't started with --inspect (sends SIGUSR1).
+            -- Use this for server code, SSR (Astro/TanStack server), scripts — anything Node.
+            type = 'pwa-node',
+            request = 'attach',
+            name = '🔌 Attach to Node process (pick)',
+            processId = require('dap.utils').pick_process,
+            cwd = '${workspaceFolder}',
+            sourceMaps = true,
+            skipFiles = skip,
+          },
+          {
+            -- Convenience: attach to the conventional --inspect port. `restart` lets the
+            -- session survive --watch / nodemon reloads.
+            type = 'pwa-node',
+            request = 'attach',
+            name = '🔌 Attach to Node --inspect :9229',
+            port = 9229,
+            cwd = '${workspaceFolder}',
+            restart = true,
+            sourceMaps = true,
+            skipFiles = skip,
+          },
+          {
+            -- Browser side: attach to Helium running with --remote-debugging-port=9222
+            -- (your `helium-debug` shell alias). Open the app, then attach.
+            type = 'pwa-chrome',
+            request = 'attach',
+            name = '🌐 Attach to Helium :9222',
+            port = 9222,
+            webRoot = '${workspaceFolder}',
+            sourceMaps = true,
+          },
+          {
+            -- Quick one-off: launch and debug the file in the current buffer with Node.
+            type = 'pwa-node',
+            request = 'launch',
+            name = '🚀 Launch current file (node)',
+            program = '${file}',
+            cwd = '${workspaceFolder}',
+            sourceMaps = true,
+            skipFiles = skip,
+          },
+        }
+      end
+
+      -- UI setup
+      dapui.setup()
+      dap.listeners.after.event_initialized['dapui_config'] = function()
+        dapui.open()
+      end
+      dap.listeners.before.event_terminated['dapui_config'] = function()
+        dapui.close()
+      end
+      dap.listeners.before.event_exited['dapui_config'] = function()
+        dapui.close()
+      end
+
+      -- Keymaps
+      vim.keymap.set('n', '<C-o>', dap.continue, { desc = 'Debug: Start/Continue' })
+      vim.keymap.set('n', '<F10>', dap.step_over, { desc = 'Debug: Step Over' })
+      vim.keymap.set('n', '<F11>', dap.step_into, { desc = 'Debug: Step Into' })
+      vim.keymap.set('n', '<F12>', dap.step_out, { desc = 'Debug: Step Out' })
+      vim.keymap.set('n', '<Leader>b', dap.toggle_breakpoint, { desc = 'Debug: Toggle Breakpoint' })
+      vim.keymap.set('n', '<Leader>B', function()
+        dap.set_breakpoint(vim.fn.input 'Breakpoint condition: ')
+      end, { desc = 'Debug: Conditional Breakpoint' })
+      vim.keymap.set('n', '<Leader>dr', dap.repl.open, { desc = 'Debug: Open REPL' })
+      vim.keymap.set('n', '<Leader>du', dapui.toggle, { desc = 'Debug: Toggle UI' })
+    end,
+  },
+  {
+    'folke/lazydev.nvim',
+    ft = 'lua', -- only load on lua files
+    opts = {
+      library = {
+        -- See the configuration section for more details
+        -- Load luvit types when the `vim.uv` word is found
+        { path = '${3rd}/luv/library', words = { 'vim%.uv' } },
+      },
+    },
+  },
+  { -- optional cmp completion source for require statements and module annotations
+    'hrsh7th/nvim-cmp',
+    opts = function(_, opts)
+      opts.sources = opts.sources or {}
+      table.insert(opts.sources, {
+        name = 'lazydev',
+        group_index = 0, -- set group index to 0 to skip loading LuaLS completions
+      })
+    end,
+  },
+  { -- optional blink completion source for require statements and module annotations
+    'saghen/blink.cmp',
+    opts = {
+      sources = {
+        -- add lazydev to your completion providers
+        default = { 'lazydev', 'lsp', 'path', 'snippets', 'buffer' },
+        providers = {
+          lazydev = {
+            name = 'LazyDev',
+            module = 'lazydev.integrations.blink',
+            -- make lazydev completions top priority (see `:h blink.cmp`)
+            score_offset = 100,
+          },
+        },
+      },
+    },
+  },
+  {
     'ThePrimeagen/vim-be-good',
   },
   {
@@ -996,7 +1238,6 @@ require('lazy').setup({
   --  Here are some example plugins that I've included in the Kickstart repository.
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
-  require 'kickstart.plugins.debug',
   require 'kickstart.plugins.indent_line',
   require 'kickstart.plugins.lint',
   require 'kickstart.plugins.autopairs',
@@ -1168,3 +1409,6 @@ vim.api.nvim_create_autocmd('FileType', {
     pcall(vim.treesitter.start, args.buf)
   end,
 })
+
+-- My fancy way of pinning parts of files I'm working on
+vim.keymap.set('n', '<leader>v', 'O//NOTE: PINNED!!<Esc>j', { silent = true, noremap = true })
