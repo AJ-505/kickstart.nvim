@@ -1021,6 +1021,15 @@ require('lazy').setup({
     dependencies = { 'nvim-lua/plenary.nvim' },
   },
   {
+    's1n7ax/nvim-window-picker',
+    name = 'window-picker',
+    event = 'VeryLazy',
+    version = '2.*',
+    config = function()
+      require('window-picker').setup()
+    end,
+  },
+  {
     'joryeugene/dadbod-grip.nvim',
     dependencies = { 'tpope/vim-dadbod' }, -- it builds on this
     cmd = { 'Grip', 'GripOpen', 'GripStart', ... },
@@ -1045,6 +1054,23 @@ require('lazy').setup({
   },
 
   -- nvim-dap (the debugger itself)
+  --
+  -- FULL-STACK DEBUG WORKFLOW (frontend -> backend)
+  -- A debugger attaches to ONE process. This app is several: the browser (frontend JS in
+  -- Helium), the backend Node server (:9229), and the Astro SSR Node process (:9230).
+  -- nvim-dap runs MANY sessions at once, but there is NO single call stack across the
+  -- network — you set breakpoints on EACH side you care about.
+  --   1. cd ~/code/work/archive && ./startup-script.zsh debug   (backend :9229, SSR :9230)
+  --   2. helium-debug   then open http://localhost:4321
+  --   3. <C-o>      -> "Attach to Node --inspect :9229"        (backend session)
+  --      <leader>dn -> "Attach to Helium :9222"                (browser session)
+  --      <leader>dn -> "Attach to Node process (pick)" -> :9230 (optional: Astro SSR)
+  --   4. <leader>b in BOTH a frontend handler and the backend route.
+  --   5. Act in the browser: the frontend breakpoint pauses first — read the function's
+  --      arguments in the dap-ui SCOPES panel and the call chain in STACK; step with
+  --      F10/F11/F12; <C-o> to continue -> the request then hits the backend breakpoint.
+  -- Keys: <C-o> start/continue · <leader>dn new session · <leader>dx terminate ·
+  --       <leader>b breakpoint · <leader>du toggle UI · F10/F11/F12 step over/into/out.
   {
     'mfussenegger/nvim-dap',
     dependencies = {
@@ -1149,15 +1175,21 @@ require('lazy').setup({
 
       -- Keymaps
       vim.keymap.set('n', '<C-o>', dap.continue, { desc = 'Debug: Start/Continue' })
-      vim.keymap.set('n', '<F10>', dap.step_over, { desc = 'Debug: Step Over' })
-      vim.keymap.set('n', '<F11>', dap.step_into, { desc = 'Debug: Step Into' })
-      vim.keymap.set('n', '<F12>', dap.step_out, { desc = 'Debug: Step Out' })
+      vim.keymap.set('n', '<Leader>do', dap.step_over, { desc = 'Debug: Step Over' })
+      vim.keymap.set('n', '<Leader>di', dap.step_into, { desc = 'Debug: Step Into' })
+      vim.keymap.set('n', '<Leader>dO', dap.step_out, { desc = 'Debug: Step Out' })
       vim.keymap.set('n', '<Leader>b', dap.toggle_breakpoint, { desc = 'Debug: Toggle Breakpoint' })
       vim.keymap.set('n', '<Leader>B', function()
         dap.set_breakpoint(vim.fn.input 'Breakpoint condition: ')
       end, { desc = 'Debug: Conditional Breakpoint' })
       vim.keymap.set('n', '<Leader>dr', dap.repl.open, { desc = 'Debug: Open REPL' })
       vim.keymap.set('n', '<Leader>du', dapui.toggle, { desc = 'Debug: Toggle UI' })
+      -- Start an ADDITIONAL session (instead of continuing the current one). This is how you
+      -- attach several processes at once, e.g. browser + backend + SSR — see workflow above.
+      vim.keymap.set('n', '<Leader>dn', function()
+        dap.continue { new = true }
+      end, { desc = 'Debug: New session (attach another process)' })
+      vim.keymap.set('n', '<Leader>dx', dap.terminate, { desc = 'Debug: Terminate session' })
     end,
   },
   {
