@@ -560,61 +560,19 @@ require('lazy').setup({
             typescriptreact = true,
           }
 
+          -- TS source definition needs the typescript-tools client; without one
+          -- (e.g. the plugin failed to start) fall back to plain definitions.
           local function goto_ts_source_definition()
-            local bufnr = event.buf
-            local clients = vim.tbl_filter(function(lsp_client)
-              return lsp_client.name == 'tsgo' and lsp_client.attached_buffers[bufnr]
-            end, vim.lsp.get_clients { bufnr = bufnr })
-
-            if vim.tbl_isempty(clients) then
-              require('telescope.builtin').lsp_implementations()
-              return
+            if #vim.lsp.get_clients { bufnr = event.buf, name = 'typescript-tools' } > 0 then
+              require('typescript-tools.api').go_to_source_definition()
+            else
+              require('telescope.builtin').lsp_definitions()
             end
-
-            local client = clients[1]
-            local offset_encoding = client.offset_encoding or 'utf-16'
-            local params = vim.lsp.util.make_position_params(0, offset_encoding)
-
-            client:request('custom/textDocument/sourceDefinition', params, function(err, result)
-              if err then
-                vim.notify(err.message or vim.inspect(err), vim.log.levels.WARN)
-                require('telescope.builtin').lsp_definitions()
-                return
-              end
-
-              if not result or vim.tbl_isempty(result) then
-                require('telescope.builtin').lsp_definitions()
-                return
-              end
-
-              local locations = vim.islist(result) and result or { result }
-              if #locations == 1 then
-                vim.lsp.util.show_document(locations[1], offset_encoding, { focus = true })
-                return
-              end
-
-              local items = vim.lsp.util.locations_to_items(locations, offset_encoding)
-
-              require('telescope.pickers')
-                .new({}, {
-                  prompt_title = 'TS Source Definitions',
-                  finder = require('telescope.finders').new_table {
-                    results = items,
-                    entry_maker = require('telescope.make_entry').gen_from_quickfix {},
-                  },
-                  previewer = require('telescope.config').values.qflist_previewer {},
-                  sorter = require('telescope.config').values.generic_sorter {},
-                  push_cursor_on_edit = true,
-                  push_tagstack_on_edit = true,
-                })
-                :find()
-            end, bufnr)
           end
 
           if ts_filetypes[vim.bo[event.buf].filetype] then
             map('gd', goto_ts_source_definition, '[G]oto Source [D]efinition')
             map('gD', require('telescope.builtin').lsp_definitions, '[G]oto TypeScript [D]eclaration')
-            map('gs', goto_ts_source_definition, '[G]oto [S]ource Definition')
           else
             -- Jump to the definition of the word under your cursor.
             --  This is where a variable was first declared, or where a function is defined, etc.
@@ -652,14 +610,10 @@ require('lazy').setup({
             end
           end
 
-          -- PERFORMANCE: Disable semantic tokens to reduce LSP processing by ~30-40%
-          --
-          -- Semantic tokens provide syntax highlighting but are very expensive in large files
-          -- Treesitter provides sufficient highlighting without the LSP overhead
-          -- local client = vim.lsp.get_client_by_id(event.data.client_id)
-          -- if client and client.server_capabilities.semanticTokensProvider then
-          -- client.server_capabilities.semanticTokensProvider = nil
-          -- end
+          -- The client driving this buffer, used by the guards below.
+          -- NOTE: semantic tokens are left enabled; the knob to drop them for large
+          -- files is `client.server_capabilities.semanticTokensProvider = nil` here.
+          local client = vim.lsp.get_client_by_id(event.data.client_id)
 
           -- The following two autocommands are used to highlight references of the
           -- word under your cursor when your cursor rests there for a little while.
@@ -730,11 +684,10 @@ require('lazy').setup({
         },
       }
 
-      -- LSP servers and clients are able to communicate to each other what features they support.
-      --  By default, Neovim doesn't support everything that is in the LSP specification.
-      --  When you add blink.cmp, luasnip, etc. Neovim now has *more* capabilities.
-      --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
-      local capabilities = require('blink.cmp').get_lsp_capabilities()
+      -- Vue Language Tools' TypeScript plugin, read from the mason
+      -- `vue-language-server` package (which ships @vue/language-server,
+      -- @vue/typescript-plugin and a TypeScript 6.0.3 fallback).
+      local vue_language_server_path = vim.fn.stdpath 'data' .. '/mason/packages/vue-language-server/node_modules/@vue/language-server'
 
       local servers = {
         lua_ls = {
@@ -746,6 +699,24 @@ require('lazy').setup({
             },
           },
         },
+        -- Plain .ts/.tsx/.js/.jsx is served by typescript-tools.nvim (see
+        -- lua/custom/plugins/typescript.lua). ts_ls is scoped to .vue so vue_ls has a
+        -- TypeScript partner to forward `tsserver/request` to, with the Vue plugin loaded.
+        ts_ls = {
+          filetypes = { 'vue' },
+          init_options = {
+            plugins = {
+              {
+                name = '@vue/typescript-plugin',
+                location = vue_language_server_path,
+                languages = { 'vue' },
+                configNamespace = 'typescript',
+              },
+            },
+          },
+        },
+        vue_ls = {},
+        rust_analyzer = {},
       }
 
       -- Ensure the servers and tools above are installed
@@ -767,17 +738,16 @@ require('lazy').setup({
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
+      -- mason-lspconfig v2 enables every installed server itself; we only supply
+      -- per-server configuration. LSP capabilities come from blink.cmp's own
+      -- `vim.lsp.config('*', ...)`, so no handler is needed here.
+      for name, server in pairs(servers) do
+        vim.lsp.config(name, server)
+      end
+
       require('mason-lspconfig').setup {
         ensure_installed = {},
-        automatic_installation = false,
         automatic_enable = true,
-        handlers = {
-          function(server_name)
-            local server = servers[server_name] or {}
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
-          end,
-        },
       }
     end,
   },
@@ -1243,21 +1213,22 @@ require('lazy').setup({
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     config = function()
-      require('nvim-treesitter').setup {
-        ensure_installed = {
-          'bash',
-          'c',
-          'diff',
-          'html',
-          'lua',
-          'luadoc',
-          'markdown',
-          'markdown_inline',
-          'query',
-          'vim',
-          'vimdoc',
-        },
-      }
+      -- nvim-treesitter `main` installs parsers via install(), not setup { ensure_installed }.
+      pcall(require('nvim-treesitter').install, {
+        'bash',
+        'c',
+        'diff',
+        'html',
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'query',
+        'rust',
+        'vim',
+        'vimdoc',
+        'vue',
+      })
     end,
   },
 
@@ -1418,23 +1389,6 @@ end, { desc = 'Toggle Diagnostics' })
 
 -- PERFORMANCE: Use :noa wa to save without triggering autocommands (faster)
 vim.keymap.set('n', '<leader>w', ':noa wa<CR>', { silent = true, noremap = true })
-
--- TS 7 (tsgo) LSP implementation
-local lspconfig = require 'lspconfig'
-local configs = require 'lspconfig.configs'
-
-if not configs.tsgo then
-  configs.tsgo = {
-    default_config = {
-      cmd = { 'tsgo', '--lsp', '--stdio' },
-      filetypes = { 'typescript', 'typescriptreact', 'javascript', 'javascriptreact' },
-      root_dir = lspconfig.util.root_pattern('package.json', 'tsconfig.json', '.git'),
-      settings = {},
-    },
-  }
-end
-
-lspconfig.tsgo.setup {}
 
 vim.api.nvim_create_autocmd('FileType', {
   callback = function(args)
