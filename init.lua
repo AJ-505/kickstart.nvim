@@ -560,18 +560,9 @@ require('lazy').setup({
             typescriptreact = true,
           }
 
-          -- TS source definition needs the typescript-tools client; without one
-          -- (e.g. the plugin failed to start) fall back to plain definitions.
-          local function goto_ts_source_definition()
-            if #vim.lsp.get_clients { bufnr = event.buf, name = 'typescript-tools' } > 0 then
-              require('typescript-tools.api').go_to_source_definition()
-            else
-              require('telescope.builtin').lsp_definitions()
-            end
-          end
-
           if ts_filetypes[vim.bo[event.buf].filetype] then
-            map('gd', goto_ts_source_definition, '[G]oto Source [D]efinition')
+            -- Stock ts_ls has no `sourceDefinition` request, so gd is the same
+            -- jump as every other filetype; only gD is TypeScript-specific.
             map('gD', require('telescope.builtin').lsp_definitions, '[G]oto TypeScript [D]eclaration')
           else
             -- Jump to the definition of the word under your cursor.
@@ -699,11 +690,17 @@ require('lazy').setup({
             },
           },
         },
-        -- Plain .ts/.tsx/.js/.jsx is served by typescript-tools.nvim (see
-        -- lua/custom/plugins/typescript.lua). ts_ls is scoped to .vue so vue_ls has a
-        -- TypeScript partner to forward `tsserver/request` to, with the Vue plugin loaded.
+        -- Stock TypeScript server for .ts/.tsx/.js/.jsx, plus .vue, which is
+        -- not in ts_ls's default filetypes: vue_ls forwards `tsserver/request`
+        -- here with the Vue plugin loaded.
         ts_ls = {
-          filetypes = { 'vue' },
+          filetypes = {
+            'javascript',
+            'javascriptreact',
+            'typescript',
+            'typescriptreact',
+            'vue',
+          },
           init_options = {
             plugins = {
               {
